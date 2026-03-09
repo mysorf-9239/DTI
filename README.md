@@ -30,23 +30,69 @@ DeepDTI operates on a dual-pathway mechanism:
 ### Data & Model Flow
 
 ```mermaid
-graph TD
-    A[Raw Data: SMILES, FASTA] --> B(Data Processor)
-    B --> C{Encoding}
-    C --> D[Sequence Encoding - MPNN/CNN]
-    C --> E[Graph Construction - kNN Similarity]
-    
-    D --> F[Student Model]
-    E --> G[Teacher Model - DIA Blocks]
-    
-    F --> H{Uncertainty Estimation - MC Dropout}
-    G --> I{Uncertainty Estimation - MC Dropout}
-    
-    H --> J[PairGate]
-    I --> J
-    
-    J --> K[Dynamic Fusion & KD Loss]
-    K --> L[Final DTI Prediction]
+graph TB
+    subgraph Data_Inputs ["1. Input Representation"]
+        D_SMILES["Drug SMILES"]
+        P_FASTA["Protein FASTA"]
+        G_kNN["kNN Interaction Graphs<br/>(DD, PP, DP, DDPP)"]
+    end
+
+    subgraph Student_Branch ["2. Student Branch (Sequence-based)"]
+        MPNN["MPNN Encoder<br/>(Message Passing)"]
+        CNN["CNN Encoder<br/>(Local Patterns)"]
+        S_MLP["Student Predictor"]
+        D_SMILES --> MPNN
+        P_FASTA --> CNN
+        MPNN --> S_MLP
+        CNN --> S_MLP
+    end
+
+    subgraph Teacher_Branch ["3. Teacher Branch (Graph-based)"]
+        G_Feat["Drug/Prot Graph Features"]
+        GCN["Graph Convolutional Stack<br/>(Multi-view)"]
+        DIA["DIA Blocks<br/>(Deep Interactive Attention)"]
+        T_MLP["Teacher Predictor"]
+        
+        G_kNN --> GCN
+        G_Feat --> GCN
+        GCN --> DIA
+        DIA --> T_MLP
+    end
+
+    subgraph Uncertainty_Module ["4. Uncertainty & Gated Fusion"]
+        direction TB
+        MC_S["MC Dropout samples (S)"]
+        MC_T["MC Dropout samples (T)"]
+        
+        Var_S["Uncertainty (σ²_S)"]
+        Var_T["Uncertainty (σ²_T)"]
+        
+        PG["PairGate Network"]
+        Weight["Gate Weight (w)"]
+        
+        S_MLP -- "S samples" --> MC_S --> Var_S --> PG
+        T_MLP -- "S samples" --> MC_T --> Var_T --> PG
+        PG --> Weight
+    end
+
+    subgraph Output_Loss ["5. Final Layer & Training Losses"]
+        direction LR
+        Final_Logit["Fused Prediction"]
+        BCE_Loss["BCE Supervised Loss"]
+        KD_Loss["Knowledge Distillation Loss<br/>(T -> S)"]
+        
+        Weight -- "w*S + (1-w)*T" --> Final_Logit
+        Final_Logit --> BCE_Loss
+        S_MLP -. "Distillation" .-> KD_Loss
+        T_MLP -. "Distillation" .-> KD_Loss
+    end
+
+    %% Styling
+    style Data_Inputs fill:#f9f9f9,stroke:#333,stroke-width:2px
+    style Student_Branch fill:#e1f5fe,stroke:#01579b,stroke-width:2px
+    style Teacher_Branch fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    style Uncertainty_Module fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
+    style Output_Loss fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px
 ```
 
 ---
