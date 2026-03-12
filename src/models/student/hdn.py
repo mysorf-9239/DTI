@@ -65,6 +65,6 @@ def get_model(cfg_data: dict | HDNConfig | None = None):
 @torch.no_grad()
 def forward_logits(seq_torch_model: nn.Module, v_d, v_p) -> torch.Tensor:
     out = seq_torch_model(v_d, v_p)
-    if isinstance(out, tuple | list):
+    if isinstance(out, (tuple, list)):
         out = out[0]
     return cast(torch.Tensor, out.view(-1))

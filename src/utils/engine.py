@@ -14,7 +14,7 @@ def to_device(x, device):
     """Move tensors/lists/dicts to the specified device."""
     if torch.is_tensor(x):
         return x.to(device, non_blocking=True)
-    if isinstance(x, list | tuple):
+    if isinstance(x, (list, tuple)):
         return type(x)(to_device(t, device) for t in x)
     if isinstance(x, dict):
         return {k: to_device(v, device) for k, v in x.items()}

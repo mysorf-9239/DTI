@@ -26,7 +26,8 @@ def knn_cosine_graph(emb: np.ndarray, k: int):
     cols = idx.reshape(-1)
     w = sim[rows, cols].astype(np.float32)
     best: dict[tuple[int, int], float] = {}
-    for r, c, ww in zip(rows, cols, w, strict=False):
+    # `zip(..., strict=...)` is Python 3.10+. This project supports Python 3.9.
+    for r, c, ww in zip(rows, cols, w):
         if r == c:
             continue
         a, b = (int(r), int(c)) if r < c else (int(c), int(r))

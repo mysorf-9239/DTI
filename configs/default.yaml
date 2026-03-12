@@ -1,9 +1,9 @@
 # UGTS-DTI Default Configuration
 
 # General Settings
-dataset: "KIBA"
+dataset: "DAVIS"
 seed: 10
-device: "cuda" # or "cpu"
+device: "cpu" # or "cpu"
 
 # Training Hyperparameters
 train:
@@ -23,7 +23,7 @@ model:
     drug_encoding: "MPNN"
     target_encoding: "CNN"
     # DeepPurpose config will be derived from these if needed
-    
+
   teacher:
     n_heads: 8
     dia_layers: 2
@@ -31,7 +31,7 @@ model:
     mlp_hidden: 128
     k_dd: 10
     k_pp: 10
-    
+
   fusion:
     mc_samples: 6
     temperature: 2.0
