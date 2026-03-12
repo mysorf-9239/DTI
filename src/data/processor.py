@@ -133,10 +133,21 @@ def prepare_dataloaders(dataset_name: str, batch_size: int = 32):
     nD, nP = len(drug_ids), len(prot_ids)
 
     # 5. Graph edges
-    dp_pairs = np.stack([
-        train_df["Graph_Drug"].astype(str).map(drug_id2local).values,
-        train_df["Graph_Target"].map(prot_id2local).values,
-    ], axis=1)
+    # By default we only use TRAIN interactions to build the D-P bipartite graph.
+    # If you include valid/test interactions here, validation metrics can be inflated
+    # due to information leakage (the evaluated pairs become explicit graph edges).
+    dp_pairs_mode = os.environ.get("UGTS_DTI_DP_PAIRS", "train").strip().lower()
+    pairs_df = train_df
+    if dp_pairs_mode in {"all", "full"}:
+        logger.warning("UGTS_DTI_DP_PAIRS=all enabled: this leaks valid/test pairs into the graph.")
+        pairs_df = pd.concat([train_df, valid_df, test_df], ignore_index=True)
+    dp_pairs = np.stack(
+        [
+            pairs_df["Graph_Drug"].astype(str).map(drug_id2local).values,
+            pairs_df["Graph_Target"].map(prot_id2local).values,
+        ],
+        axis=1,
+    )
 
     # 6. Dataloaders
     train_loader = data.DataLoader(

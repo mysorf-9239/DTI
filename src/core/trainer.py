@@ -76,7 +76,9 @@ class Trainer:
     @torch.no_grad()
     def evaluate(self, loader, graphs, feat_drug, feat_prot):
         self.model.eval()
-        y_true, y_score = [], []
+        y_true = []
+        y_score_f, y_score_s, y_score_t = [], [], []
+        w_all = []
 
         for v_d, v_p, y, d_idx, p_idx in tqdm(loader, desc="Evaluating"):
             v_d = to_device(v_d, self.device)
@@ -85,21 +87,36 @@ class Trainer:
             p_idx = torch.as_tensor(p_idx, dtype=torch.long, device=self.device)
             y = torch.as_tensor(y, dtype=torch.float32, device=self.device)
 
-            logit, _, _, _, _, _ = self.model(
-                v_d, v_p, d_idx, p_idx, graphs, feat_drug, feat_prot, enable_mc=False
+            # The fusion gate is driven by uncertainty (MC-dropout variance). If we disable
+            # MC at inference time, u_s/u_t become zeros and the gate collapses to a constant.
+            logit_f, logit_s, logit_t, w, _, _ = self.model(
+                v_d, v_p, d_idx, p_idx, graphs, feat_drug, feat_prot, enable_mc=True
             )
             y_true.append(y.detach().cpu().numpy())
-            y_score.append(logit.detach().cpu().numpy())
+            y_score_f.append(logit_f.detach().cpu().numpy())
+            y_score_s.append(logit_s.detach().cpu().numpy())
+            y_score_t.append(logit_t.detach().cpu().numpy())
+            w_all.append(w.detach().cpu().numpy())
 
         y_true = np.concatenate(y_true)
-        y_score = np.concatenate(y_score)
-        prob = 1.0 / (1.0 + np.exp(-y_score))
+        y_score_f = np.concatenate(y_score_f)
+        y_score_s = np.concatenate(y_score_s)
+        y_score_t = np.concatenate(y_score_t)
+        w_all = np.concatenate(w_all)
+        prob_f = 1.0 / (1.0 + np.exp(-y_score_f))
+        prob_s = 1.0 / (1.0 + np.exp(-y_score_s))
+        prob_t = 1.0 / (1.0 + np.exp(-y_score_t))
 
         from ..utils.metrics import all_dti_metrics
 
-        m = all_dti_metrics(y_true, prob)
-        m["auroc"] = float(roc_auc_score(y_true, prob))
-        m["auprc"] = float(average_precision_score(y_true, prob))
+        m = all_dti_metrics(y_true, prob_f)
+        m["auroc"] = float(roc_auc_score(y_true, prob_f))
+        m["auprc"] = float(average_precision_score(y_true, prob_f))
+        m["gate_mean"] = float(np.mean(w_all))
+        m["auroc_student"] = float(roc_auc_score(y_true, prob_s))
+        m["auprc_student"] = float(average_precision_score(y_true, prob_s))
+        m["auroc_teacher"] = float(roc_auc_score(y_true, prob_t))
+        m["auprc_teacher"] = float(average_precision_score(y_true, prob_t))
         return m
 
     @torch.no_grad()
@@ -115,7 +132,7 @@ class Trainer:
             y = torch.as_tensor(y, dtype=torch.float32, device=self.device)
 
             logit, logit_s, logit_t, w, u_s, u_t = self.model(
-                v_d, v_p, d_idx, p_idx, graphs, feat_drug, feat_prot, enable_mc=False
+                v_d, v_p, d_idx, p_idx, graphs, feat_drug, feat_prot, enable_mc=True
             )
 
             prob_f = torch.sigmoid(logit)

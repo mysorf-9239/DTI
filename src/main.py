@@ -114,7 +114,12 @@ def main():
         avg_loss, auroc_train = trainer.train_epoch(ep, train_loader, graphs, feat_drug, feat_prot)
         val = trainer.evaluate(valid_loader, graphs, feat_drug, feat_prot)
 
-        logger.info(f"Epoch {ep} | Loss: {avg_loss:.4f} | Val AUPRC: {val['auprc']:.4f}")
+        logger.info(
+            f"Epoch {ep} | Loss: {avg_loss:.4f} | "
+            f"Val AUPRC(fusion/student/teacher): "
+            f"{val['auprc']:.4f}/{val['auprc_student']:.4f}/{val['auprc_teacher']:.4f} | "
+            f"gate_mean={val['gate_mean']:.3f}"
+        )
 
         if val["auprc"] > best_auprc:
             best_auprc = val["auprc"]
